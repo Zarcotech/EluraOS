@@ -1,0 +1,766 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link href="https://fonts.googleapis.com/css2?family=Exo:ital,wght@0,100..900;1,100..900&display=swap" rel="stylesheet">
+<title>EluraOS</title>
+<style>
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial;
+  background: url("wallpapers/wallpaper.jpg") center/cover no-repeat;
+  height: 100vh;
+  overflow: hidden;
+  color: white;
+  user-select: none;
+}
+
+.desktop { position: relative; width: 100%; height: 100%; }
+canvas#dragGridOverlay { position: absolute; top:0; left:0; pointer-events: none; z-index: 5; opacity: 0; }
+
+.icon {
+  position: absolute;
+  width: 80px; height: 100px;
+  text-align: center;
+  padding: 8px 0;
+  cursor: default;
+  border-radius: 8px;
+  box-sizing: border-box;
+  transition: box-shadow 0.15s ease, background-color 0.15s ease, transform 0.2s ease;
+}
+
+.icon:hover {
+  transform: scale(0.9);
+}
+
+.icon.selected {
+  background: rgba(255,255,255,0.08);
+  box-shadow: 0 0 0 1px rgba(255,255,255,0.6) inset;
+}
+
+.icon img { width: 48px; height: 48px; display: block; margin: 0 auto; pointer-events: none; }
+.icon .label { margin-top: 4px; font-size: 12px; white-space: nowrap; }
+
+.taskbar {
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  height: 40px;
+  background: rgba(0,0,0,0.4);
+  backdrop-filter: blur(12px);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 10px;
+}
+
+.start-btn { background: none; border: none; color: white; font-size: 16px; cursor: pointer; }
+.taskbar-icons { display: flex; align-items: center; gap: 12px; }
+.taskbar-icons img { width: 24px; height: 24px; cursor: pointer; }
+.clock { font-size: 14px; }
+
+.spotlight {
+  position: absolute;
+  top: 20%; left: 50%;
+  transform: translateX(-50%);
+  width: 400px;
+  background: rgba(0,0,0,0.7);
+  backdrop-filter: blur(20px);
+  border-radius: 12px;
+  padding: 16px;
+  display: none;
+}
+.spotlight input {
+  width: 100%;
+  padding: 8px;
+  border: none;
+  border-radius: 6px;
+  font-size: 16px;
+  outline: none;
+}
+.spotlight.open { display: block; }
+
+#mondWidget {
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Exo', sans-serif;
+  color: white;
+  pointer-events: none;
+  text-align: center;
+}
+#mondWidget .day { font-size: 64px; font-weight: 700; letter-spacing: 2px; margin-bottom: 8px; }
+#mondWidget .time { font-size: 28px; font-weight: 500; letter-spacing: 1px; }
+
+.app-window {
+  border-radius: 8px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  position: absolute;
+  top: 100px;
+  left: 100px;
+  width: 500px;
+  height: 400px;
+  z-index: 10;
+}
+
+#window {
+  position: absolute;
+  transition: top 0.3s ease, left 0.3s ease,
+              width 0.3s ease, height 0.3s ease;
+}
+.app-titlebar {
+  height: 36px;
+  background: rgba(255,255,255,0.3);
+  backdrop-filter: blur(20px);
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  flex-shrink: 0;
+  border-bottom: 1px solid rgba(255,255,255,0.6);
+  border-top-left-radius: 8px;
+  border-top-right-radius: 8px;
+  position: relative;
+  cursor: move;
+}
+
+.app-content {
+  flex: 1;
+  background: rgba(30,30,30,0.8);
+  backdrop-filter: blur(10px);
+  display: flex;
+  flex-direction: column;
+}
+
+.app-window.fullscreen {
+  border-radius: 0; /* remove bevel */
+  top: 0 !important;
+  left: 0 !important;
+  width: 100% !important;
+  height: calc(100% - 40px) !important;
+}
+
+.app-window.fullscreen .app-titlebar {
+  background: #151125;
+  border-radius: 0;
+}
+
+.app-window.fullscreen .app-content {
+  border-radius: 0;
+}
+
+.app-content {
+  flex: 1;
+  background: rgba(50,50,50,0.6);
+  backdrop-filter: blur(15px);
+  border-bottom-left-radius: 8px;
+  border-bottom-right-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Title */
+.app-titlebar .mac-buttons {
+  display: flex;
+  gap: 8px;
+  z-index: 2; /* above title text */
+}
+
+.app-titlebar .title {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  pointer-events: none;
+  color: white;
+  font-weight: 500;
+  font-size: 14px;
+  white-space: nowrap;
+  z-index: 1;
+}
+.app-titlebar .mac-buttons button {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: transform 0.08s ease, box-shadow 0.08s ease;
+  border: none;
+  padding: 0;
+  background: transparent;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.app-titlebar .mac-buttons button:hover { transform: scale(1.2); }
+.app-titlebar .mac-buttons button:active { transform: scale(0.95); }
+.app-titlebar .mac-buttons button:focus { outline: 2px solid rgba(255,255,255,0.06); outline-offset: 2px; }
+.app-titlebar .mac-buttons .close { background: #ff5f56; }
+.app-titlebar .mac-buttons .minimize { background: #ffbd2e; }
+.app-titlebar .mac-buttons .maximize { background: #27c93f; }
+
+
+.app-content { flex: 1; }
+.app-content iframe {
+  width: 100%;
+  height: 100%;
+  border: none;
+}
+.app-window.focused {
+  box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+  transition: box-shadow 0.15s ease;
+}
+
+.app-window .resize-handle {
+  position: absolute;
+  background: transparent; 
+}
+
+.app-window .resize-handle.n,
+.app-window .resize-handle.s {
+  left: 0;
+  right: 0;
+  height: 6px;
+  cursor: ns-resize;
+}
+.app-window .resize-handle.n { top: 0; }
+.app-window .resize-handle.s { bottom: 0; }
+
+.app-window .resize-handle.e,
+.app-window .resize-handle.w {
+  top: 0;
+  bottom: 0;
+  width: 6px;
+  cursor: ew-resize;
+}
+.app-window .resize-handle.e { right: 0; }
+.app-window .resize-handle.w { left: 0; }
+
+.app-window .resize-handle.nw,
+.app-window .resize-handle.ne,
+.app-window .resize-handle.sw,
+.app-window .resize-handle.se {
+  width: 12px;
+  height: 12px;
+}
+.app-window .resize-handle.nw { top: 0; left: 0; cursor: nwse-resize; }
+.app-window .resize-handle.ne { top: 0; right: 0; cursor: nesw-resize; }
+.app-window .resize-handle.sw { bottom: 0; left: 0; cursor: nesw-resize; }
+.app-window .resize-handle.se { bottom: 0; right: 0; cursor: nwse-resize; }
+
+.taskbar-windows { display:flex; gap:8px; align-items:center; }
+.taskbar-window-btn {
+  display:flex; align-items:center; gap:8px; padding:4px 8px; border-radius:8px; border: none;
+  background: rgba(255,255,255,0.04); color: white; cursor: pointer; font-size: 12px;
+  transition: background 160ms ease, transform 220ms ease, opacity 220ms ease, box-shadow 120ms ease;
+}
+.taskbar-window-btn:hover { background: rgba(255,255,255,0.07); transform: translateY(-2px); }
+.taskbar-window-btn .tb-icon { width:18px; height:18px; flex-shrink:0; display:block; border-radius:4px; }
+.taskbar-window-btn .tb-label { display:inline-block; max-width:100px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+.app-window { transition: box-shadow 160ms ease; will-change: transform, opacity; }
+
+</style>
+</head>
+
+<body>
+<div class="desktop" id="desktop">
+  <!-- anything that is coming.html means its under dev. or hasnt been done yet -->
+  <canvas id="dragGridOverlay"></canvas>
+  <div class="icon" data-id="Pulsar" data-app="browser.html"><img src="icons/gchrome.png"><div class="label">Browser</div></div>
+  <div class="icon" data-id="Files" data-app="apps/finder.html"><img src="icons/files.png"><div class="label">Files</div></div>
+  <div class="icon" data-id="Music" data-app="apps/coming.html"><img src="icons/music.png"><div class="label">Music</div></div>
+  <div class="icon" data-id="Wisp" data-app="apps/coming.html"><img src="icons/wifi.png"><div class="label">Wisp</div></div>
+  <div class="icon" data-id="Credits" data-app="apps/credits.html"><img src="icons/github.png"><div class="label">Credits</div></div>
+
+  <div class="taskbar" style="background-color: #151125;">
+    <button class="start-btn" id="startBtn"><!--place it here when it functions --></button>
+    <div class="taskbar-icons">
+      <img data-app="browser.html" class="icon" data-id="Pulsar" src="icons/gchrome.png">
+    </div>
+    <div class="taskbar-windows" id="taskbarWindows" style="display:flex;gap:6px;align-items:center"></div>
+    <div class="clock" id="clock"></div>
+  </div>
+
+  <div class="spotlight" id="spotlight">
+    <input type="text" placeholder="Search...">
+  </div>
+
+  <div id="mondWidget">
+    <div class="day" id="mondDay">MONDAY</div>
+    <div class="time" id="mondTime">12:34</div>
+  </div>
+</div>
+
+<script>
+(function(){
+  const desktop = document.getElementById('desktop');
+  const overlay = document.getElementById('dragGridOverlay');
+  const ctx = overlay.getContext('2d');
+  const icons = Array.from(document.querySelectorAll('.icon'));
+  const startBtn = document.getElementById('startBtn');
+  const spotlight = document.getElementById('spotlight');
+  const clockEl = document.getElementById('clock');
+
+  const gridX = 80, gridY = 100, taskbarHeight = 40, radius = 2;
+  let drag = null, overlayOpacity = 0, gridTimer = null, gridVisible = false;
+  overlay.width = window.innerWidth;
+  overlay.height = window.innerHeight;
+
+  const dragOccupied = new Set();
+  function getGridKey(c,r){ return `${c},${r}`; }
+
+  function layoutIcons(){
+    dragOccupied.clear();
+    const maxCols = Math.floor(window.innerWidth / gridX);
+    const maxRows = Math.floor((window.innerHeight - taskbarHeight) / gridY);
+    let col = 0, row = 0;
+
+    icons.forEach(el=>{
+      while(dragOccupied.has(getGridKey(col,row))){
+        row++; if(row >= maxRows){ row=0; col++; }
+      }
+      el.style.left = col*gridX + 'px';
+      el.style.top = row*gridY + 'px';
+      dragOccupied.add(getGridKey(col,row));
+      el.dataset.oldLeft = el.style.left;
+      el.dataset.oldTop = el.style.top;
+      row++; if(row >= maxRows){ row=0; col++; }
+    });
+  }
+
+  layoutIcons();
+  window.addEventListener('resize', layoutIcons);
+
+  desktop.addEventListener('click', e=>{
+    if(e.target.closest('.icon')){
+      icons.forEach(el=>el.classList.remove('selected'));
+      e.target.closest('.icon').classList.add('selected');
+    } else icons.forEach(el=>el.classList.remove('selected'));
+  });
+
+  icons.forEach(el=>{
+    el.addEventListener('mousedown', e=>{
+      drag = {el, offsetX:e.offsetX, offsetY:e.offsetY};
+      overlayOpacity = 0; gridVisible = false;
+      clearTimeout(gridTimer);
+      gridTimer = setTimeout(()=>{ gridVisible = true; },150);
+    });
+    el.addEventListener('dblclick', ()=>{
+      const appName = el.querySelector('.label').textContent;
+      const appUrl = el.dataset.app;
+      if(appUrl) openApp(appName, appUrl);
+    });
+  });
+
+  function drawGridOverlay(dragEl){
+    ctx.clearRect(0,0,overlay.width,overlay.height);
+    const iconCenterX = parseInt(dragEl.style.left)+gridX/2;
+    const iconCenterY = parseInt(dragEl.style.top)+gridY/2;
+    const maxCols = Math.ceil(overlay.width/gridX);
+    const maxRows = Math.ceil((overlay.height-taskbarHeight)/gridY);
+
+    for(let col=0; col<maxCols; col++){
+      for(let row=0; row<maxRows; row++){
+        const cellX = col*gridX;
+        const cellY = row*gridY;
+        const cellCenterX = cellX+gridX/2;
+        const cellCenterY = cellY+gridY/2;
+        const dx = cellCenterX - iconCenterX;
+        const dy = cellCenterY - iconCenterY;
+        const distance = Math.sqrt(dx*dx + dy*dy);
+        if(distance > radius*gridX) continue;
+        const alpha = overlayOpacity*(1-distance/(radius*gridX));
+        ctx.strokeStyle = `rgba(255,255,255,${alpha})`;
+        ctx.lineWidth = 1;
+        ctx.strokeRect(cellX,cellY,gridX,gridY);
+      }
+    }
+    overlay.style.opacity = overlayOpacity;
+  }
+
+  function animateOverlay(){
+    if(drag && gridVisible && overlayOpacity<1) overlayOpacity += 0.05;
+    if((!drag || !gridVisible) && overlayOpacity>0) overlayOpacity -= 0.05;
+    ctx.clearRect(0,0,overlay.width,overlay.height);
+    if(drag && gridVisible && overlayOpacity>0) drawGridOverlay(drag.el);
+    overlay.style.opacity = overlayOpacity;
+    requestAnimationFrame(animateOverlay);
+  }
+  animateOverlay();
+
+  desktop.addEventListener('mousemove', e=>{
+    if(!drag) return;
+    let x = e.clientX - drag.offsetX;
+    let y = e.clientY - drag.offsetY;
+    x = Math.min(Math.max(0,x), window.innerWidth-gridX);
+    y = Math.min(Math.max(0,y), window.innerHeight-gridY-taskbarHeight);
+    drag.el.style.left = x + 'px';
+    drag.el.style.top = y + 'px';
+  });
+
+  desktop.addEventListener('mouseup', ()=>{
+    if(!drag) return;
+    const maxCols=Math.floor(window.innerWidth/gridX);
+    const maxRows=Math.floor((window.innerHeight-taskbarHeight)/gridY);
+    let iconCenterX=parseInt(drag.el.style.left)+gridX/2;
+    let iconCenterY=parseInt(drag.el.style.top)+gridY/2;
+    let col=Math.floor(iconCenterX/gridX);
+    let row=Math.floor(iconCenterY/gridY);
+    const oldCol=Math.round(parseInt(drag.el.dataset.oldLeft)/gridX);
+    const oldRow=Math.round(parseInt(drag.el.dataset.oldTop)/gridY);
+    dragOccupied.delete(getGridKey(oldCol,oldRow));
+    let found=false, startCol=col, startRow=row;
+    while(!found){
+      const key=getGridKey(col,row);
+      if(!dragOccupied.has(key)){
+        drag.el.style.left=(col*gridX)+'px';
+        drag.el.style.top=(row*gridY)+'px';
+        found=true; break;
+      }
+      row++; if(row>=maxRows){ row=0; col++; }
+      if(col>=maxCols){ col=0; row=0; }
+      if(col===startCol && row===startRow) break;
+    }
+    dragOccupied.clear();
+    icons.forEach(icon=>{
+      const c=Math.round(parseInt(icon.style.left)/gridX);
+      const r=Math.round(parseInt(icon.style.top)/gridY);
+      dragOccupied.add(getGridKey(c,r));
+      icon.dataset.oldLeft=icon.style.left;
+      icon.dataset.oldTop=icon.style.top;
+    });
+    drag=null;
+    clearTimeout(gridTimer);
+    gridVisible=false;
+  });
+
+// make spotlight better guys
+  
+
+  // Clock
+  function updateClock(){
+    const d=new Date();
+    clockEl.textContent=d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+  }
+  updateClock();
+  setInterval(updateClock,60000);
+
+  function openApp(name, url) {
+    const win = document.createElement('div');
+    win.className = 'app-window';
+    win.style.left = (50 + (window.windows?window.windows.length*20:0)) + 'px';
+    win.style.top = (80 + (window.windows?window.windows.length*20:0)) + 'px';
+  win.style.width = '900px';
+  win.style.height = '640px';
+
+    win.innerHTML = `
+      <div class="app-titlebar" role="toolbar">
+          <div class="mac-buttons">
+            <button class="close" title="Close" aria-label="Close"></button>
+            <button class="minimize" title="Minimize" aria-label="Minimize"></button>
+            <button class="maximize" title="Maximize" aria-label="Maximize"></button>
+          </div>
+        <div class="title">${name}</div>
+      </div>
+      <div class="app-content">
+        <iframe sandbox="allow-same-origin allow-scripts allow-forms"></iframe>
+      </div>
+
+      <div class="resize-handle n"></div>
+      <div class="resize-handle s"></div>
+      <div class="resize-handle e"></div>
+      <div class="resize-handle w"></div>
+      <div class="resize-handle ne"></div>
+      <div class="resize-handle nw"></div>
+      <div class="resize-handle se"></div>
+      <div class="resize-handle sw"></div>
+    `;
+    desktop.appendChild(win);
+
+    const titlebar = win.querySelector('.app-titlebar');
+    const closeBtn = win.querySelector('.mac-buttons .close');
+    const minBtn = win.querySelector('.mac-buttons .minimize');
+    const maxBtn = win.querySelector('.mac-buttons .maximize');
+    const content = win.querySelector('.app-content');
+    const iframe = content.querySelector('iframe');
+    const taskbarWindows = document.getElementById('taskbarWindows');
+
+  if (!window.windows) window.windows = [];
+  if (!window.zIndexCounter) window.zIndexCounter = 10;
+
+    function focusWindow(w) {
+      window.zIndexCounter++;
+      w.style.zIndex = window.zIndexCounter;
+      w.classList.add('focused');
+      window.windows.forEach(oth => { if (oth !== w) oth.classList.remove('focused'); });
+  updateTaskbarButtons();
+    }
+
+    function minimizeWindow(w) {
+      w.dataset.minimized = 'true';
+      w.style.display = 'none';
+      updateTaskbarButtons();
+    }
+
+    function restoreWindow(w) {
+      delete w.dataset.minimized;
+      w.style.display = '';
+      focusWindow(w);
+    }
+
+    
+      const tbBtn = document.createElement('button');
+      tbBtn.className = 'taskbar-window-btn';
+      const tbIcon = document.createElement('img');
+      tbIcon.className = 'tb-icon';
+    const srcIcon = Array.from(document.querySelectorAll('.icon')).find(i=> (i.querySelector('.label')||{}).textContent === name);
+      tbIcon.src = (srcIcon && srcIcon.querySelector('img')) ? srcIcon.querySelector('img').src : 'icons/gchrome.png';
+      const tbLabel = document.createElement('span');
+      tbLabel.className = 'tb-label';
+      tbLabel.textContent = name.replace(/\s+/g,' ');
+      tbBtn.appendChild(tbIcon);
+      tbBtn.appendChild(tbLabel);
+      tbBtn.title = name;
+      tbBtn.addEventListener('click', e => {
+        e.stopPropagation();
+        if (win.dataset.minimized) restoreWindow(win);
+        else if (win.classList.contains('focused')) minimizeWindow(win);
+        else focusWindow(win);
+      });
+      taskbarWindows.appendChild(tbBtn);
+
+    window.windows.push(win);
+
+    win.addEventListener('mousedown', e => {
+      e.stopPropagation();
+      focusWindow(win);
+    });
+
+    desktop.addEventListener('mousedown', e => {
+      if (!e.target.closest('.app-window')) {
+        window.windows.forEach(w => w.classList.remove('focused'));
+        updateTaskbarButtons();
+      }
+    });
+
+    
+    titlebar.addEventListener('dblclick', e => {
+      e.stopPropagation();
+      toggleMaximize();
+    });
+
+    
+    let isDragging = false;
+    let dragOffsetX=0, dragOffsetY=0;
+    titlebar.addEventListener('pointerdown', e => {
+      if (e.button !== 0) return;
+      // don't start a drag when clicking the mac-buttons (close/min/max)
+      if (e.target.closest('.mac-buttons')) return;
+      // if this window was snapped (left/right), restore its previous geometry so user can drag out
+      if (win.dataset.snapped) {
+        if (win.dataset.prevLeft) {
+          win.style.left = win.dataset.prevLeft;
+          win.style.top = win.dataset.prevTop;
+          win.style.width = win.dataset.prevWidth;
+          win.style.height = win.dataset.prevHeight;
+        }
+        delete win.dataset.snapped;
+        delete win.dataset.prevLeft; delete win.dataset.prevTop; delete win.dataset.prevWidth; delete win.dataset.prevHeight;
+      }
+      // if window is fullscreen, restore it so the user can drag it out (snap-out)
+      if (win.classList.contains('fullscreen')) {
+        toggleMaximize();
+      }
+      isDragging = true;
+      focusWindow(win);
+      const rect = win.getBoundingClientRect();
+      dragOffsetX = e.clientX - rect.left;
+      dragOffsetY = e.clientY - rect.top;
+      titlebar.setPointerCapture(e.pointerId);
+    });
+    titlebar.addEventListener('pointermove', e => {
+      if (!isDragging) return;
+      let nx = e.clientX - dragOffsetX;
+      let ny = e.clientY - dragOffsetY;
+      nx = Math.max(0, Math.min(nx, window.innerWidth - 100));
+      ny = Math.max(0, Math.min(ny, window.innerHeight - 80));
+      win.style.left = nx + 'px';
+      win.style.top = ny + 'px';
+      
+        if (nx < 40) { win.style.boxShadow = '0 6px 20px rgba(0,0,0,0.6), inset 0 0 0 2px rgba(255,255,255,0.02)'; }
+        else if (nx > window.innerWidth - 40 - parseFloat(win.style.width)) { win.style.boxShadow = '0 6px 20px rgba(0,0,0,0.6), inset 0 0 0 2px rgba(255,255,255,0.02)'; }
+        else { win.style.boxShadow = ''; }
+      });
+      titlebar.addEventListener('pointerup', e => {
+        if (isDragging) {
+        
+              const rect = win.getBoundingClientRect();
+              const top = rect.top;
+              const left = rect.left;
+              const right = window.innerWidth - rect.right;
+              // snap to fullscreen when dragged to top
+              if (top < 30) {
+                if (!win.classList.contains('fullscreen')) {
+                  toggleMaximize();
+                }
+              } else if (left < 30) {
+                // save previous geometry if not already saved so we can "snap out"
+                if (!win.dataset.prevLeft) {
+                  win.dataset.prevLeft = win.style.left;
+                  win.dataset.prevTop = win.style.top;
+                  win.dataset.prevWidth = win.style.width;
+                  win.dataset.prevHeight = win.style.height;
+                }
+                win.dataset.snapped = 'left';
+                win.style.left = '0px'; win.style.top = '0px'; win.style.width = '50%'; win.style.height = 'calc(100% - 40px)';
+              } else if (right < 30) {
+                if (!win.dataset.prevLeft) {
+                  win.dataset.prevLeft = win.style.left;
+                  win.dataset.prevTop = win.style.top;
+                  win.dataset.prevWidth = win.style.width;
+                  win.dataset.prevHeight = win.style.height;
+                }
+                win.dataset.snapped = 'right';
+                win.style.left = '50%'; win.style.top = '0px'; win.style.width = '50%'; win.style.height = 'calc(100% - 40px)';
+              }
+        }
+        isDragging = false;
+        try { titlebar.releasePointerCapture(e.pointerId); } catch {}
+        win.style.boxShadow = '';
+      });
+
+      
+    const minW = 200, minH = 120;
+    let resizeDir = null, startRect = null;
+    function onResizePointerMove(e) {
+      if (!resizeDir || !startRect) return;
+      const px = e.clientX, py = e.clientY;
+      let left = startRect.left, top = startRect.top, width = startRect.width, height = startRect.height;
+      if (resizeDir.includes('e')) width = Math.max(minW, px - left);
+      if (resizeDir.includes('s')) height = Math.max(minH, py - top);
+      if (resizeDir.includes('w')) {
+        const newLeft = Math.min(px, startRect.right - minW);
+        width = startRect.right - newLeft;
+        left = newLeft;
+      }
+      if (resizeDir.includes('n')) {
+        const newTop = Math.min(py, startRect.bottom - minH);
+        height = startRect.bottom - newTop;
+        top = newTop;
+      }
+      Object.assign(win.style, { left: left + 'px', top: top + 'px', width: width + 'px', height: height + 'px' });
+    }
+    function onResizePointerUp(e) { document.removeEventListener('pointermove', onResizePointerMove); document.removeEventListener('pointerup', onResizePointerUp); resizeDir = null; startRect = null; }
+    win.querySelectorAll('.resize-handle').forEach(h => {
+      h.addEventListener('pointerdown', e=>{
+        e.stopPropagation();
+        if (win.classList.contains('fullscreen')) return;
+        resizeDir = Array.from(h.classList).find(c=>['n','s','e','w','ne','nw','se','sw'].includes(c)) || '';
+        startRect = win.getBoundingClientRect();
+        document.addEventListener('pointermove', onResizePointerMove);
+        document.addEventListener('pointerup', onResizePointerUp);
+        h.setPointerCapture(e.pointerId);
+      });
+    });
+
+    
+    function toggleMaximize() {
+      if (win.classList.contains('fullscreen')) {
+        win.classList.remove('fullscreen');
+        if (win.dataset.prevLeft) { win.style.left = win.dataset.prevLeft; win.style.top = win.dataset.prevTop; win.style.width = win.dataset.prevWidth; win.style.height = win.dataset.prevHeight; }
+      } else {
+        win.dataset.prevLeft = win.style.left;
+        win.dataset.prevTop = win.style.top;
+        win.dataset.prevWidth = win.style.width;
+        win.dataset.prevHeight = win.style.height;
+        win.classList.add('fullscreen');
+        Object.assign(win.style, { left: '0px', top: '0px', width: '100%', height: 'calc(100% - 40px)' });
+      }
+      updateTaskbarButtons();
+    }
+
+    
+    closeBtn.addEventListener('click', ()=>{ win.remove(); tbBtn.remove(); window.windows = window.windows.filter(w=>w!==win); updateTaskbarButtons(); });
+    minBtn.addEventListener('click', ()=>{ minimizeWindow(win); });
+    maxBtn.addEventListener('click', ()=>{ toggleMaximize(); });
+
+    
+    fetch(url, { method: 'HEAD' }).then(res=>{ if (res.ok) iframe.src = url; else iframe.src = '/apps/404.html'; }).catch(()=>{ iframe.src = '/apps/404.html'; });
+    iframe.src = url;
+    iframe.addEventListener('error', ()=>{ iframe.srcdoc = `<html><body style="background:#222;color:#fff;font-family:sans-serif;padding:24px;"><h2>${name}</h2><p>Unable to load ${url}</p></body></html>`; });
+
+    
+    new ResizeObserver(()=>{ iframe.style.width = content.clientWidth + 'px'; iframe.style.height = content.clientHeight + 'px'; }).observe(content);
+
+    
+    function updateTaskbarButtons(){
+      Array.from(taskbarWindows.children).forEach((b,i)=>{
+        const w = window.windows[i];
+        if (!w) return;
+        if (w.dataset.minimized) b.style.opacity = '0.6'; else b.style.opacity = '1';
+        if (w.classList.contains('focused')) b.style.boxShadow = 'inset 0 0 0 2px rgba(255,255,255,0.08)'; else b.style.boxShadow = 'none';
+      });
+    }
+
+    
+    focusWindow(win);
+
+    
+    window.addEventListener('keydown', e=>{
+      
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'm') {
+        const focused = window.windows.find(w=>w.classList.contains('focused'));
+        if (focused) minimizeWindow(focused);
+      }
+      
+      if (e.altKey && e.key === 'Tab') {
+        e.preventDefault();
+        const idx = window.windows.findIndex(w=>w.classList.contains('focused'));
+        const next = window.windows[(idx+1) % window.windows.length];
+        if (next) focusWindow(next);
+      }
+    });
+
+    
+    win.minimize = ()=>minimizeWindow(win);
+    win.restore = ()=>restoreWindow(win);
+    win.close = ()=>{ win.remove(); tbBtn.remove(); window.windows = window.windows.filter(w=>w!==win); updateTaskbarButtons(); };
+
+    updateTaskbarButtons();
+  }
+
+  window.openApp = openApp;
+})();
+(function(){
+  const mondDay = document.getElementById('mondDay');
+  const mondTime = document.getElementById('mondTime');
+  const days = ['SUNDAY','MONDAY','TUESDAY','WEDNESDAY','THURSDAY','FRIDAY','SATURDAY'];
+
+  function updateMond(){
+    const d = new Date();
+    mondDay.textContent = days[d.getDay()];
+    mondTime.textContent = d.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+  }
+
+  updateMond();
+  setInterval(updateMond, 1000);
+})();
+
+const taskbarIcons = document.querySelectorAll('.taskbar-icons .icon');
+taskbarIcons.forEach(icon=>{
+  icon.addEventListener('click',()=>{
+    const appUrl = icon.getAttribute('data-app');
+    const appName = 'Browser';
+    if(appUrl) openApp(appName, appUrl);
+  });
+});
+</script>
+
+</body>
+</html>

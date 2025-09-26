@@ -1,0 +1,87 @@
+<iframe id="frame" src="about:blank" frameborder="0" style="width:100%;height:100vh;border-radius:8px;overflow:hidden"></iframe>
+
+<script>
+  (function(){
+    const iframe = document.getElementById('frame');
+    const target = 'https://open.spotify.com/';
+    function normalizeUrl(url){
+      if (!url.includes('.') && !url.startsWith('http://') && !url.startsWith('https://')) return 'https://duckduckgo.com/?q='+encodeURIComponent(url);
+      if (!url.startsWith('http://') && !url.startsWith('https://')) return 'https://'+url;
+      return url;
+    }
+    async function loadViaProxy(url){
+      const normalized = normalizeUrl(url);
+      const ctrl = window.sj || (window.parent && window.parent.sj) || (window.top && window.top.sj);
+      if (ctrl && typeof ctrl.encodeUrl === 'function'){
+        try{
+          const encoded = ctrl.encodeUrl(normalized);
+          iframe.src = window.location.origin + encoded;
+          return;
+        }catch(e){ showUnavailable(); }
+      } else {
+        showUnavailable();
+      }
+    }
+    function showUnavailable(){
+      const container = document.createElement('div');
+      container.style.cssText = 'width:100%;height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(180deg,#071019,#0b0f14);color:#e6eef8;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica,Arial;';
+      container.innerHTML = `
+        <div style="text-align:center;max-width:720px;padding:20px;border-radius:8px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.03)">
+          <h2 style="margin:0 0 10px 0;color:#fff">Proxy unavailable</h2>
+          <p style="margin:0 0 12px 0;color:rgba(230,238,248,0.8)">The scramjet proxy is not initialized in this context. You can retry initializing the proxy here or open the Music app from the main desktop shell which already initializes the proxy.</p>
+          <div style="display:flex;gap:8px;justify-content:center;margin-top:12px">
+            <button id="retryProxy" style="padding:8px 12px;border-radius:6px;border:0;cursor:pointer;background:#2563eb;color:white">Retry proxy init</button>
+            <button id="instructions" style="padding:8px 12px;border-radius:6px;border:1px solid rgba(255,255,255,0.04);background:transparent;color:var(--muted)">How to fix</button>
+          </div>
+          <div id="instrBox" style="margin-top:14px;display:none;color:var(--muted);font-size:13px;text-align:left;">
+            <ol style="padding-left:18px;margin:8px 0">
+              <li>Open the main EluraOS desktop (index.html) and launch Music from the desktop icon.</li>
+              <li>Or run the app served from the root origin so the proxy scripts are available.</li>
+              <li>If you manage the project, ensure service worker and scramjet are initialized on the main shell.</li>
+            </ol>
+          </div>
+        </div>
+      `;
+      document.body.innerHTML = '';
+      document.body.appendChild(container);
+
+      const retry = document.getElementById('retryProxy');
+      const instrBtn = document.getElementById('instructions');
+      const instrBox = document.getElementById('instrBox');
+
+      instrBtn.addEventListener('click', ()=>{ instrBox.style.display = instrBox.style.display === 'none' ? 'block' : 'none'; });
+
+      retry.addEventListener('click', async ()=>{
+        retry.disabled = true; retry.textContent = 'Initializing...';
+        try{
+          // attempt to load /proxy.js dynamically
+          if(!document.querySelector('script[src="/proxy.js"]')){
+            const s = document.createElement('script'); s.src = '/proxy.js'; s.async = true; document.head.appendChild(s);
+          }
+          // wait for window.sj to appear
+          const ok = await waitFor(() => (window.sj && typeof window.sj.encodeUrl === 'function') || (window.parent && window.parent.sj && typeof window.parent.sj.encodeUrl === 'function'), 5000);
+          if(ok){
+            // restore original body and reload app proxy load
+            location.reload();
+            return;
+          } else {
+            retry.textContent = 'Retry failed';
+            setTimeout(()=>{ retry.disabled = false; retry.textContent = 'Retry proxy init'; }, 1200);
+          }
+        }catch(err){ retry.textContent = 'Error'; console.warn(err); setTimeout(()=>{ retry.disabled = false; retry.textContent = 'Retry proxy init'; }, 1200); }
+      });
+    }
+
+    function waitFor(fn, timeout){
+      const start = Date.now();
+      return new Promise(resolve=>{
+        (function check(){
+          if(fn()) return resolve(true);
+          if(Date.now()-start > timeout) return resolve(false);
+          setTimeout(check, 150);
+        })();
+      });
+    }
+    loadViaProxy(target);
+  })();
+</script>
