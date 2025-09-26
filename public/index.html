@@ -216,6 +216,14 @@ canvas#dragGridOverlay { position: absolute; top:0; left:0; pointer-events: none
   transition: box-shadow 0.15s ease;
 }
 
+.app-window.minimized {
+  opacity: 0; /* visually hide */
+  pointer-events: none;
+  transform: scale(0.98);
+  filter: blur(1px);
+  position: absolute; /* keep layout but visually hidden */
+}
+
 .app-window .resize-handle {
   position: absolute;
   background: transparent; 
@@ -504,13 +512,13 @@ canvas#dragGridOverlay { position: absolute; top:0; left:0; pointer-events: none
 
     function minimizeWindow(w) {
       w.dataset.minimized = 'true';
-      w.style.display = 'none';
+      w.classList.add('minimized');
       updateTaskbarButtons();
     }
 
     function restoreWindow(w) {
       delete w.dataset.minimized;
-      w.style.display = '';
+      w.classList.remove('minimized');
       focusWindow(w);
     }
 
