@@ -43,9 +43,4 @@ if (!navigator.serviceWorker && !window.location.pathname.includes("srcdocs")) {
     });
 }
 
-<<<<<<< HEAD
 init();
-=======
-init();
-
->>>>>>> 2eee418a6d69ff36903fb42b63364aeb17f7f955
