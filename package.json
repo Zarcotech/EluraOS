@@ -1,5 +1,9 @@
 {
+<<<<<<< HEAD
   "name": "eluraos",
+=======
+  "name": "webos",
+>>>>>>> 2eee418a6d69ff36903fb42b63364aeb17f7f955
   "version": "1.0.0",
   "type": "module",
   "packageManager": "pnpm@9.12.3",

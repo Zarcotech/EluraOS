@@ -44,4 +44,8 @@ iframe.addEventListener('load', () => {
     } catch {
         console.warn('cross-origin, cannot modify links inside iframe');
     }
+<<<<<<< HEAD
 });
+=======
+});
+>>>>>>> 2eee418a6d69ff36903fb42b63364aeb17f7f955
