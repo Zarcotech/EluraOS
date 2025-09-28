@@ -44,14 +44,19 @@ canvas#dragGridOverlay { position: absolute; top:0; left:0; pointer-events: none
 
 .taskbar {
   position: absolute;
-  bottom: 0; left: 0; right: 0;
-  height: 40px;
+  bottom: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 80%;
+  max-width: 800px;
+  height: 50px;
   background: rgba(0,0,0,0.4);
   backdrop-filter: blur(12px);
+  border-radius: 25px;
   display: flex;
   align-items: center;
-  justify-content: center; /* center middle items */
-  padding: 0 10px;
+  justify-content: center;
+  padding: 0 20px;
 }
 
 .start-btn { background: none; border: none; color: white; font-size: 16px; cursor: pointer; position: absolute; left: 12px; z-index: 4; }
@@ -117,13 +122,14 @@ canvas#dragGridOverlay { position: absolute; top:0; left:0; pointer-events: none
 }
 .app-titlebar {
   height: 36px;
-  background: rgba(255,255,255,0.3);
+  /* background: rgba(255,255,255,0.3); */
+  background: #3d2f52;
   backdrop-filter: blur(20px);
   display: flex;
   align-items: center;
   padding: 0 12px;
   flex-shrink: 0;
-  border-bottom: 1px solid rgba(255,255,255,0.6);
+  /* border-bottom: 1px solid rgba(255,255,255,0.6); */
   border-top-left-radius: 8px;
   border-top-right-radius: 8px;
   position: relative;
@@ -143,7 +149,7 @@ canvas#dragGridOverlay { position: absolute; top:0; left:0; pointer-events: none
   top: 0 !important;
   left: 0 !important;
   width: 100% !important;
-  height: calc(100% - 40px) !important;
+  height: calc(100% - 69px) !important;
 }
 
 .app-window.fullscreen .app-titlebar {
@@ -265,7 +271,7 @@ canvas#dragGridOverlay { position: absolute; top:0; left:0; pointer-events: none
 .taskbar-windows { display:flex; gap:8px; align-items:center; }
 .taskbar-window-btn {
   display:flex; align-items:center; gap:8px; padding:4px 8px; border-radius:8px; border: none;
-  background: rgba(255,255,255,0.04); color: white; cursor: pointer; font-size: 12px;
+  background: rgba(255,255,255,0.04); color: white; cursor: pointer; font-size: 13px;
   transition: background 160ms ease, transform 220ms ease, opacity 220ms ease, box-shadow 120ms ease;
 }
 .taskbar-window-btn:hover { background: rgba(255,255,255,0.07); transform: translateY(-2px); }
@@ -287,7 +293,7 @@ canvas#dragGridOverlay { position: absolute; top:0; left:0; pointer-events: none
   <div class="icon" data-id="Wisp" data-app="apps/coming.html"><img src="icons/wifi.png"><div class="label">Wisp</div></div> -->
   <div class="icon" data-id="Credits" data-app="apps/credits.html"><img src="icons/github.png"><div class="label">Credits</div></div>
 
-  <div class="taskbar" style="background-color: #151125;">
+  <div class="taskbar" style="background-color: #3d2f52;">
     <button class="start-btn" id="startBtn"><!--place it here when it functions --></button>
     <div class="taskbar-icons">
       <img data-app="browser.html" class="icon" data-id="Pulsar" src="icons/gchrome.png">
@@ -465,8 +471,14 @@ canvas#dragGridOverlay { position: absolute; top:0; left:0; pointer-events: none
     win.className = 'app-window';
     win.style.left = (50 + (window.windows?window.windows.length*20:0)) + 'px';
     win.style.top = (80 + (window.windows?window.windows.length*20:0)) + 'px';
-  win.style.width = '900px';
-  win.style.height = '640px';
+
+    if (name === 'Credits') {
+      win.style.width = '500px';
+      win.style.height = '600px';
+    } else {
+      win.style.width = '900px';
+      win.style.height = '640px';
+    }
 
     win.innerHTML = `
       <div class="app-titlebar" role="toolbar">
@@ -627,7 +639,7 @@ canvas#dragGridOverlay { position: absolute; top:0; left:0; pointer-events: none
                   win.dataset.prevHeight = win.style.height;
                 }
                 win.dataset.snapped = 'left';
-                win.style.left = '0px'; win.style.top = '0px'; win.style.width = '50%'; win.style.height = 'calc(100% - 40px)';
+                win.style.left = '0px'; win.style.top = '0px'; win.style.width = '50%'; win.style.height = 'calc(100% - 69px)';
               } else if (right < 30) {
                 if (!win.dataset.prevLeft) {
                   win.dataset.prevLeft = win.style.left;
@@ -636,7 +648,7 @@ canvas#dragGridOverlay { position: absolute; top:0; left:0; pointer-events: none
                   win.dataset.prevHeight = win.style.height;
                 }
                 win.dataset.snapped = 'right';
-                win.style.left = '50%'; win.style.top = '0px'; win.style.width = '50%'; win.style.height = 'calc(100% - 40px)';
+                win.style.left = '50%'; win.style.top = '0px'; win.style.width = '50%'; win.style.height = 'calc(100% - 69px)';
               }
         }
         isDragging = false;
@@ -689,7 +701,7 @@ canvas#dragGridOverlay { position: absolute; top:0; left:0; pointer-events: none
         win.dataset.prevWidth = win.style.width;
         win.dataset.prevHeight = win.style.height;
         win.classList.add('fullscreen');
-        Object.assign(win.style, { left: '0px', top: '0px', width: '100%', height: 'calc(100% - 40px)' });
+        Object.assign(win.style, { left: '0px', top: '0px', width: '100%', height: 'calc(100% - 90px)' });
       }
       updateTaskbarButtons();
     }
