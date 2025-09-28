@@ -5,6 +5,7 @@ const reloadBtn = document.getElementById('reloadBtn');
 
 let iframeHistory = [];
 let currentIndex = -1;
+let navWatchdog = null;
 
 function goThroughProxy(url) {
     if (!url.includes('.') && !url.startsWith('http://') && !url.startsWith('https://')) {
@@ -12,13 +13,43 @@ function goThroughProxy(url) {
     } else if (!url.startsWith('http://') && !url.startsWith('https://')) {
         url = 'https://' + url;
     }
-    const encodedUrl = scramjet.encodeUrl(url);
-    iframe.src = window.location.origin + encodedUrl;
-    if (iframeHistory[currentIndex] !== url) {
-        iframeHistory = iframeHistory.slice(0, currentIndex + 1);
-        iframeHistory.push(url);
-        currentIndex++;
+    const finalUrl = url;
+    function pushHistory() {
+        if (iframeHistory[currentIndex] !== finalUrl) {
+            iframeHistory = iframeHistory.slice(0, currentIndex + 1);
+            iframeHistory.push(finalUrl);
+            currentIndex++;
+        }
     }
+
+    // try using scramjet proxy; fallback to direct navigation on failure
+    try {
+        if (typeof scramjet !== 'undefined' && typeof scramjet.encodeUrl === 'function') {
+            const encodedUrl = scramjet.encodeUrl(finalUrl);
+            // set a watchdog to detect proxy/Wisp failure and fallback
+            if (navWatchdog) clearTimeout(navWatchdog);
+            let loaded = false;
+            const onLoad = () => { loaded = true; clearTimeout(navWatchdog); try { iframe.removeEventListener('load', onLoad); iframe.removeEventListener('error', onError); } catch(e){} };
+            const onError = () => { loaded = false; clearTimeout(navWatchdog); try { iframe.removeEventListener('load', onLoad); iframe.removeEventListener('error', onError); } catch(e){}; iframe.src = finalUrl; pushHistory(); };
+            iframe.addEventListener('load', onLoad);
+            iframe.addEventListener('error', onError);
+            iframe.src = window.location.origin + encodedUrl;
+            navWatchdog = setTimeout(()=>{
+                if (!loaded) {
+                    try { iframe.removeEventListener('load', onLoad); iframe.removeEventListener('error', onError); } catch(e){}
+                    iframe.src = finalUrl;
+                    pushHistory();
+                }
+            }, 4500);
+            return;
+        }
+    } catch (e) {
+        console.warn('Proxy encode failed, falling back to direct navigation', e);
+    }
+
+    // fallback: direct navigation to the URL
+    iframe.src = finalUrl;
+    pushHistory();
 }
 
 searchForm.addEventListener('submit', (e) => {

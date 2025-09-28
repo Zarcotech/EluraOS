@@ -117,8 +117,10 @@ canvas#dragGridOverlay { position: absolute; top:0; left:0; pointer-events: none
 
 #window {
   position: absolute;
-  transition: top 0.3s ease, left 0.3s ease,
-              width 0.3s ease, height 0.3s ease;
+  /* transition: top 0.3s ease, left 0.3s ease,
+              width 0.3s ease, height 0.3s ease; */
+  /* transitioning to make minimize effect */
+  transition: all 0.5s ease-in-out;
 }
 .app-titlebar {
   height: 36px;
@@ -224,11 +226,13 @@ canvas#dragGridOverlay { position: absolute; top:0; left:0; pointer-events: none
 }
 
 .app-window.minimized {
-  opacity: 0; /* visually hide */
+  opacity: 0; 
   pointer-events: none;
   transform: scale(0.98);
   filter: blur(1px);
-  position: absolute; /* keep layout but visually hidden */
+  position: absolute;
+  /* the --target-x and --target-y will be handled in js */
+  transform: translate(calc(var(--target-x) - 50%), calc(var(--target-y) - 50%)) scale(0.1);
 }
 
 .app-window .resize-handle {
@@ -524,15 +528,77 @@ canvas#dragGridOverlay { position: absolute; top:0; left:0; pointer-events: none
     }
 
     function minimizeWindow(w) {
-      w.dataset.minimized = 'true';
-      w.classList.add('minimized');
-      updateTaskbarButtons();
+      const tbBtn = w._tbBtn;
+      if (!tbBtn) {
+        w.dataset.minimized = 'true';
+        w.classList.add('minimized');
+        updateTaskbarButtons();
+        return;
+      }
+      const winRect = w.getBoundingClientRect();
+      const btnRect = tbBtn.getBoundingClientRect();
+      const winCx = winRect.left + winRect.width / 2;
+      const winCy = winRect.top + winRect.height / 2;
+      const btnCx = btnRect.left + btnRect.width / 2;
+      const btnCy = btnRect.top + btnRect.height / 2;
+      const dx = btnCx - winCx;
+      const dy = btnCy - winCy;
+      const scale = Math.max(0.05, Math.min(1, btnRect.width / winRect.width));
+      w.style.willChange = 'transform, opacity';
+      w.style.transformOrigin = 'center center';
+      w.style.transition = 'transform 420ms cubic-bezier(.2,.8,.2,1), opacity 320ms linear';
+      requestAnimationFrame(()=>{
+        w.style.transform = `translate(${dx}px, ${dy}px) scale(${scale})`;
+        w.style.opacity = '0';
+      });
+      function onTrans(e){
+        if(e.propertyName !== 'transform') return;
+        w.removeEventListener('transitionend', onTrans);
+        w.classList.add('minimized');
+        w.style.transition = '';
+        w.style.transform = '';
+        w.style.opacity = '';
+        w.style.willChange = '';
+        w.dataset.minimized = 'true';
+        updateTaskbarButtons();
+      }
+      w.addEventListener('transitionend', onTrans);
     }
 
     function restoreWindow(w) {
+      const tbBtn = w._tbBtn;
       delete w.dataset.minimized;
       w.classList.remove('minimized');
-      focusWindow(w);
+      if (!tbBtn) { focusWindow(w); updateTaskbarButtons(); return; }
+      const winRect = w.getBoundingClientRect();
+      const btnRect = tbBtn.getBoundingClientRect();
+      const winCx = winRect.left + winRect.width / 2;
+      const winCy = winRect.top + winRect.height / 2;
+      const btnCx = btnRect.left + btnRect.width / 2;
+      const btnCy = btnRect.top + btnRect.height / 2;
+      const dx = btnCx - winCx;
+      const dy = btnCy - winCy;
+      const scale = Math.max(0.05, Math.min(1, btnRect.width / winRect.width));
+      w.style.willChange = 'transform, opacity';
+      w.style.transformOrigin = 'center center';
+      w.style.transform = `translate(${dx}px, ${dy}px) scale(${scale})`;
+      w.style.opacity = '0';
+      requestAnimationFrame(()=>{
+        w.style.transition = 'transform 420ms cubic-bezier(.2,.8,.2,1), opacity 300ms linear';
+        w.style.transform = '';
+        w.style.opacity = '1';
+      });
+      function onTrans(e){
+        if(e.propertyName !== 'transform') return;
+        w.removeEventListener('transitionend', onTrans);
+        w.style.transition = '';
+        w.style.transform = '';
+        w.style.opacity = '';
+        w.style.willChange = '';
+        focusWindow(w);
+        updateTaskbarButtons();
+      }
+      w.addEventListener('transitionend', onTrans);
     }
 
     
@@ -554,7 +620,8 @@ canvas#dragGridOverlay { position: absolute; top:0; left:0; pointer-events: none
         else if (win.classList.contains('focused')) minimizeWindow(win);
         else focusWindow(win);
       });
-      taskbarWindows.appendChild(tbBtn);
+  taskbarWindows.appendChild(tbBtn);
+  win._tbBtn = tbBtn;
 
     window.windows.push(win);
 
@@ -692,22 +759,98 @@ canvas#dragGridOverlay { position: absolute; top:0; left:0; pointer-events: none
 
     
     function toggleMaximize() {
+      const rect = win.getBoundingClientRect();
       if (win.classList.contains('fullscreen')) {
-        win.classList.remove('fullscreen');
-        if (win.dataset.prevLeft) { win.style.left = win.dataset.prevLeft; win.style.top = win.dataset.prevTop; win.style.width = win.dataset.prevWidth; win.style.height = win.dataset.prevHeight; }
+        const prevLeft = win.dataset.prevLeft || (rect.left + 'px');
+        const prevTop = win.dataset.prevTop || (rect.top + 'px');
+        const prevWidth = win.dataset.prevWidth || (rect.width + 'px');
+        const prevHeight = win.dataset.prevHeight || (rect.height + 'px');
+        win.style.willChange = 'left,top,width,height,transform,opacity';
+        win.style.transition = 'left 360ms cubic-bezier(.2,.8,.2,1), top 360ms cubic-bezier(.2,.8,.2,1), width 360ms cubic-bezier(.2,.8,.2,1), height 360ms cubic-bezier(.2,.8,.2,1), opacity 220ms linear';
+        requestAnimationFrame(()=>{
+          win.style.left = prevLeft;
+          win.style.top = prevTop;
+          win.style.width = prevWidth;
+          win.style.height = prevHeight;
+        });
+        const onEnd = ()=>{
+          win.removeEventListener('transitionend', onEnd);
+          win.classList.remove('fullscreen');
+          win.style.transition = '';
+          win.style.willChange = '';
+        };
+        win.addEventListener('transitionend', onEnd);
+        // fallback in case transitionend doesn't fire
+        setTimeout(()=>{ if (win.classList.contains('fullscreen')) { onEnd(); } }, 600);
       } else {
-        win.dataset.prevLeft = win.style.left;
-        win.dataset.prevTop = win.style.top;
-        win.dataset.prevWidth = win.style.width;
-        win.dataset.prevHeight = win.style.height;
-        win.classList.add('fullscreen');
-        Object.assign(win.style, { left: '0px', top: '0px', width: '100%', height: 'calc(100% - 90px)' });
+        const prevRect = win.getBoundingClientRect();
+        win.dataset.prevLeft = prevRect.left + 'px';
+        win.dataset.prevTop = prevRect.top + 'px';
+        win.dataset.prevWidth = prevRect.width + 'px';
+        win.dataset.prevHeight = prevRect.height + 'px';
+        const targetLeft = '0px';
+        const targetTop = '0px';
+        const targetWidth = window.innerWidth + 'px';
+        const targetHeight = (window.innerHeight - 90) + 'px';
+        win.style.willChange = 'left,top,width,height,transform,opacity';
+        win.style.transition = 'left 360ms cubic-bezier(.2,.8,.2,1), top 360ms cubic-bezier(.2,.8,.2,1), width 360ms cubic-bezier(.2,.8,.2,1), height 360ms cubic-bezier(.2,.8,.2,1), opacity 220ms linear';
+        requestAnimationFrame(()=>{
+          win.style.left = targetLeft;
+          win.style.top = targetTop;
+          win.style.width = targetWidth;
+          win.style.height = targetHeight;
+        });
+        const onEnd2 = ()=>{
+          win.removeEventListener('transitionend', onEnd2);
+          win.classList.add('fullscreen');
+          win.style.transition = '';
+          win.style.willChange = '';
+        };
+        win.addEventListener('transitionend', onEnd2);
+        setTimeout(()=>{ if (!win.classList.contains('fullscreen')) { onEnd2(); } }, 600);
       }
       updateTaskbarButtons();
     }
 
     
-    closeBtn.addEventListener('click', ()=>{ win.remove(); tbBtn.remove(); window.windows = window.windows.filter(w=>w!==win); updateTaskbarButtons(); });
+    closeBtn.addEventListener('click', ()=>{
+      const btn = win._tbBtn;
+      if (btn) {
+        const winRect = win.getBoundingClientRect();
+        const btnRect = btn.getBoundingClientRect();
+        const winCx = winRect.left + winRect.width/2;
+        const winCy = winRect.top + winRect.height/2;
+        const btnCx = btnRect.left + btnRect.width/2;
+        const btnCy = btnRect.top + btnRect.height/2;
+        const dx = btnCx - winCx;
+        const dy = btnCy - winCy;
+        const scale = Math.max(0.04, Math.min(0.2, btnRect.width / winRect.width));
+        win.style.willChange = 'transform, opacity';
+        win.style.transition = 'transform 360ms cubic-bezier(.2,.8,.2,1), opacity 260ms linear';
+        requestAnimationFrame(()=>{
+          win.style.transform = `translate(${dx}px, ${dy}px) scale(${scale})`;
+          win.style.opacity = '0';
+        });
+        function onEnd(e){
+          if(e.propertyName !== 'transform') return;
+          win.removeEventListener('transitionend', onEnd);
+          if(btn && btn.remove) btn.remove();
+          win.remove();
+          window.windows = window.windows.filter(w=>w!==win);
+          updateTaskbarButtons();
+        }
+        win.addEventListener('transitionend', onEnd);
+      } else {
+        win.style.transition = 'transform 260ms cubic-bezier(.2,.8,.2,1), opacity 200ms linear';
+        requestAnimationFrame(()=>{ win.style.transform = 'scale(0.92)'; win.style.opacity = '0'; });
+        win.addEventListener('transitionend', function onEnd2(){
+          win.removeEventListener('transitionend', onEnd2);
+          win.remove();
+          window.windows = window.windows.filter(w=>w!==win);
+          updateTaskbarButtons();
+        });
+      }
+    });
     minBtn.addEventListener('click', ()=>{ minimizeWindow(win); });
     maxBtn.addEventListener('click', ()=>{ toggleMaximize(); });
 
@@ -781,6 +924,8 @@ taskbarIcons.forEach(icon=>{
     if(appUrl) openApp(appName, appUrl);
   });
 });
+// minimizing effect 
+
 </script>
 
 </body>
