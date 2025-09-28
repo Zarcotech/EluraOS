@@ -44,4 +44,3 @@ if (!navigator.serviceWorker && !window.location.pathname.includes("srcdocs")) {
 }
 
 init();
-

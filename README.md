@@ -18,8 +18,24 @@ pnpm start
 ## Requirements:
 pnpm and node.js installed. If you don't have it installed refer to the script below.
 
+<<<<<<< HEAD
+
+For Linux/MacOS:
+=======
+>>>>>>> 2eee418a6d69ff36903fb42b63364aeb17f7f955
 ```sh
 apt update
 apt install npm -y
 npm install -g pnpm
 ```
+<<<<<<< HEAD
+
+For Windows:
+
+1. Install Node.js
+Then:
+```sh
+npm install -g pnpm
+```
+=======
+>>>>>>> 2eee418a6d69ff36903fb42b63364aeb17f7f955
