@@ -148,10 +148,10 @@ canvas#dragGridOverlay { position: absolute; top:0; left:0; pointer-events: none
 
 .app-window.fullscreen {
   border-radius: 0; /* remove bevel */
-  top: 0 !important;
-  left: 0 !important;
-  width: 100% !important;
-  height: calc(100% - 69px) !important;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: calc(100% - 69px);
 }
 
 .app-window.fullscreen .app-titlebar {
@@ -283,6 +283,27 @@ canvas#dragGridOverlay { position: absolute; top:0; left:0; pointer-events: none
 .taskbar-window-btn .tb-label { display:inline-block; max-width:100px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 
 .app-window { transition: box-shadow 160ms ease; will-change: transform, opacity; }
+
+.shadow {
+  position: absolute;
+  pointer-events: none;
+  background: rgba(178,152,255,0.16);
+  border: 1px solid rgba(178,152,255,0.28);
+  border-radius: 10px;
+  box-shadow: 0 8px 30px rgba(120,90,200,0.12);
+  transition: opacity 180ms ease, transform 180ms ease;
+  opacity: 0;
+  z-index: 9;
+}
+
+.drag-catcher {
+  position: fixed;
+  inset: 0;
+  z-index: 9998;
+  background: transparent;
+  touch-action: none;
+  cursor: grabbing;
+}
 
 </style>
 </head>
@@ -507,6 +528,10 @@ canvas#dragGridOverlay { position: absolute; top:0; left:0; pointer-events: none
       <div class="resize-handle sw"></div>
     `;
     desktop.appendChild(win);
+  const shadow = document.createElement('div');
+  shadow.className = 'shadow';
+  desktop.appendChild(shadow);
+  win._shadow = shadow;
 
     const titlebar = win.querySelector('.app-titlebar');
     const closeBtn = win.querySelector('.mac-buttons .close');
@@ -648,6 +673,15 @@ canvas#dragGridOverlay { position: absolute; top:0; left:0; pointer-events: none
     let dragOffsetX=0, dragOffsetY=0;
     titlebar.addEventListener('pointerdown', e => {
       if (e.button !== 0) return;
+      const now = Date.now();
+      if (!win._lastPointerDown) win._lastPointerDown = 0;
+      if (now - win._lastPointerDown < 350) {
+        win._lastPointerDown = 0;
+        e.stopPropagation();
+        toggleMaximize();
+        return;
+      }
+      win._lastPointerDown = now;
       // don't start a drag when clicking the mac-buttons (close/min/max)
       if (e.target.closest('.mac-buttons')) return;
       // if this window was snapped (left/right), restore its previous geometry so user can drag out
@@ -670,9 +704,16 @@ canvas#dragGridOverlay { position: absolute; top:0; left:0; pointer-events: none
       const rect = win.getBoundingClientRect();
       dragOffsetX = e.clientX - rect.left;
       dragOffsetY = e.clientY - rect.top;
-      titlebar.setPointerCapture(e.pointerId);
+      win._shadow.style.opacity = '0';
+  win._dragPointerId = e.pointerId;
+  try { titlebar.setPointerCapture && titlebar.setPointerCapture(e.pointerId); } catch {}
+  try { win.setPointerCapture && win.setPointerCapture(e.pointerId); } catch {}
+  const catcher = document.createElement('div'); catcher.className = 'drag-catcher'; desktop.appendChild(catcher); win._dragCatcher = catcher;
+  document.addEventListener('pointermove', onDocPointerMove);
+  document.addEventListener('pointerup', onDocPointerUp);
+  document.addEventListener('pointercancel', onDocPointerUp);
     });
-    titlebar.addEventListener('pointermove', e => {
+    function onDocPointerMove(e){
       if (!isDragging) return;
       let nx = e.clientX - dragOffsetX;
       let ny = e.clientY - dragOffsetY;
@@ -680,48 +721,65 @@ canvas#dragGridOverlay { position: absolute; top:0; left:0; pointer-events: none
       ny = Math.max(0, Math.min(ny, window.innerHeight - 80));
       win.style.left = nx + 'px';
       win.style.top = ny + 'px';
-      
-        if (nx < 40) { win.style.boxShadow = '0 6px 20px rgba(0,0,0,0.6), inset 0 0 0 2px rgba(255,255,255,0.02)'; }
-        else if (nx > window.innerWidth - 40 - parseFloat(win.style.width)) { win.style.boxShadow = '0 6px 20px rgba(0,0,0,0.6), inset 0 0 0 2px rgba(255,255,255,0.02)'; }
-        else { win.style.boxShadow = ''; }
-      });
-      titlebar.addEventListener('pointerup', e => {
-        if (isDragging) {
-        
-              const rect = win.getBoundingClientRect();
-              const top = rect.top;
-              const left = rect.left;
-              const right = window.innerWidth - rect.right;
-              // snap to fullscreen when dragged to top
-              if (top < 30) {
-                if (!win.classList.contains('fullscreen')) {
-                  toggleMaximize();
-                }
-              } else if (left < 30) {
-                // save previous geometry if not already saved so we can "snap out"
-                if (!win.dataset.prevLeft) {
-                  win.dataset.prevLeft = win.style.left;
-                  win.dataset.prevTop = win.style.top;
-                  win.dataset.prevWidth = win.style.width;
-                  win.dataset.prevHeight = win.style.height;
-                }
-                win.dataset.snapped = 'left';
-                win.style.left = '0px'; win.style.top = '0px'; win.style.width = '50%'; win.style.height = 'calc(100% - 69px)';
-              } else if (right < 30) {
-                if (!win.dataset.prevLeft) {
-                  win.dataset.prevLeft = win.style.left;
-                  win.dataset.prevTop = win.style.top;
-                  win.dataset.prevWidth = win.style.width;
-                  win.dataset.prevHeight = win.style.height;
-                }
-                win.dataset.snapped = 'right';
-                win.style.left = '50%'; win.style.top = '0px'; win.style.width = '50%'; win.style.height = 'calc(100% - 69px)';
-              }
+      if (nx < 40) { win.style.boxShadow = '0 6px 20px rgba(0,0,0,0.6), inset 0 0 0 2px rgba(255,255,255,0.02)'; }
+      else if (nx > window.innerWidth - 40 - (parseFloat(win.style.width) || 0)) { win.style.boxShadow = '0 6px 20px rgba(0,0,0,0.6), inset 0 0 0 2px rgba(255,255,255,0.02)'; }
+      else { win.style.boxShadow = ''; }
+      const sh = win._shadow;
+      if (!sh) return;
+      const rect = win.getBoundingClientRect();
+      const top = rect.top;
+      const left = rect.left;
+      const right = window.innerWidth - rect.right;
+      if (top < 30) {
+        sh.style.left = '0px'; sh.style.top = '0px'; sh.style.width = window.innerWidth + 'px'; sh.style.height = 'calc(100% - 90px)'; sh.style.opacity = '1';
+      } else if (left < 40) {
+        sh.style.left = '0px'; sh.style.top = '0px'; sh.style.width = '50%'; sh.style.height = 'calc(100% - 69px)'; sh.style.opacity = '1';
+      } else if (right < 40) {
+        sh.style.left = '50%'; sh.style.top = '0px'; sh.style.width = '50%'; sh.style.height = 'calc(100% - 69px)'; sh.style.opacity = '1';
+      } else {
+        sh.style.opacity = '0';
+      }
+    }
+
+    function onDocPointerUp(e){
+      if (isDragging) {
+        const rect = win.getBoundingClientRect();
+        const top = rect.top;
+        const left = rect.left;
+        const right = window.innerWidth - rect.right;
+        if (top < 30) {
+          if (!win.classList.contains('fullscreen')) toggleMaximize();
+        } else if (left < 30) {
+          if (!win.dataset.prevLeft) {
+              win.dataset.prevLeft = win.style.left;
+              win.dataset.prevTop = win.style.top;
+              win.dataset.prevWidth = win.style.width;
+              win.dataset.prevHeight = win.style.height;
+            }
+          win.dataset.snapped = 'left';
+          win.style.left = '0px'; win.style.top = '0px'; win.style.width = '50%'; win.style.height = 'calc(100% - 69px)';
+        } else if (right < 30) {
+          if (!win.dataset.prevLeft) {
+            win.dataset.prevLeft = win.style.left;
+            win.dataset.prevTop = win.style.top;
+            win.dataset.prevWidth = win.style.width;
+            win.dataset.prevHeight = win.style.height;
+          }
+          win.dataset.snapped = 'right';
+          win.style.left = '50%'; win.style.top = '0px'; win.style.width = '50%'; win.style.height = 'calc(100% - 69px)';
         }
-        isDragging = false;
-        try { titlebar.releasePointerCapture(e.pointerId); } catch {}
-        win.style.boxShadow = '';
-      });
+      }
+      isDragging = false;
+  try { if (win._dragPointerId) { titlebar.releasePointerCapture && titlebar.releasePointerCapture(win._dragPointerId); } } catch {}
+  try { if (win._dragPointerId) { win.releasePointerCapture && win.releasePointerCapture(win._dragPointerId); } } catch {}
+  delete win._dragPointerId;
+  if (win._dragCatcher) { try { win._dragCatcher.remove(); } catch {} delete win._dragCatcher; }
+      win.style.boxShadow = '';
+      if (win._shadow) win._shadow.style.opacity = '0';
+      document.removeEventListener('pointermove', onDocPointerMove);
+      document.removeEventListener('pointerup', onDocPointerUp);
+      document.removeEventListener('pointercancel', onDocPointerUp);
+    }
 
       
     const minW = 200, minH = 120;
@@ -761,10 +819,14 @@ canvas#dragGridOverlay { position: absolute; top:0; left:0; pointer-events: none
     function toggleMaximize() {
       const rect = win.getBoundingClientRect();
       if (win.classList.contains('fullscreen')) {
+        delete win.dataset.snapped;
         const prevLeft = win.dataset.prevLeft || (rect.left + 'px');
         const prevTop = win.dataset.prevTop || (rect.top + 'px');
         const prevWidth = win.dataset.prevWidth || (rect.width + 'px');
         const prevHeight = win.dataset.prevHeight || (rect.height + 'px');
+        win.classList.remove('fullscreen');
+        // force reflow so styles update
+        void win.offsetWidth;
         win.style.willChange = 'left,top,width,height,transform,opacity';
         win.style.transition = 'left 360ms cubic-bezier(.2,.8,.2,1), top 360ms cubic-bezier(.2,.8,.2,1), width 360ms cubic-bezier(.2,.8,.2,1), height 360ms cubic-bezier(.2,.8,.2,1), opacity 220ms linear';
         requestAnimationFrame(()=>{
@@ -775,24 +837,30 @@ canvas#dragGridOverlay { position: absolute; top:0; left:0; pointer-events: none
         });
         const onEnd = ()=>{
           win.removeEventListener('transitionend', onEnd);
-          win.classList.remove('fullscreen');
           win.style.transition = '';
           win.style.willChange = '';
         };
         win.addEventListener('transitionend', onEnd);
-        // fallback in case transitionend doesn't fire
-        setTimeout(()=>{ if (win.classList.contains('fullscreen')) { onEnd(); } }, 600);
+        setTimeout(()=>{ if (win.style.transition) { onEnd(); } }, 700);
       } else {
-        const prevRect = win.getBoundingClientRect();
-        win.dataset.prevLeft = prevRect.left + 'px';
-        win.dataset.prevTop = prevRect.top + 'px';
-        win.dataset.prevWidth = prevRect.width + 'px';
-        win.dataset.prevHeight = prevRect.height + 'px';
+  const prevRect = win.getBoundingClientRect();
+  if (!win.dataset.prevLeft) win.dataset.prevLeft = prevRect.left + 'px';
+  if (!win.dataset.prevTop) win.dataset.prevTop = prevRect.top + 'px';
+  if (!win.dataset.prevWidth) win.dataset.prevWidth = prevRect.width + 'px';
+  if (!win.dataset.prevHeight) win.dataset.prevHeight = prevRect.height + 'px';
         const targetLeft = '0px';
         const targetTop = '0px';
         const targetWidth = window.innerWidth + 'px';
         const targetHeight = (window.innerHeight - 90) + 'px';
         win.style.willChange = 'left,top,width,height,transform,opacity';
+      win._justRestored = false; // Initialize the flag
+      const onEnd = ()=>{ 
+        win.removeEventListener('transitionend', onEnd);
+        win.style.transition = '';
+        win.style.willChange = '';
+        win._justRestored = true; // Set the flag after restoring
+        setTimeout(()=>{ try{ delete win._justRestored; }catch{} }, 600);
+      };
         win.style.transition = 'left 360ms cubic-bezier(.2,.8,.2,1), top 360ms cubic-bezier(.2,.8,.2,1), width 360ms cubic-bezier(.2,.8,.2,1), height 360ms cubic-bezier(.2,.8,.2,1), opacity 220ms linear';
         requestAnimationFrame(()=>{
           win.style.left = targetLeft;
@@ -835,6 +903,7 @@ canvas#dragGridOverlay { position: absolute; top:0; left:0; pointer-events: none
           if(e.propertyName !== 'transform') return;
           win.removeEventListener('transitionend', onEnd);
           if(btn && btn.remove) btn.remove();
+          if (win._shadow && win._shadow.remove) win._shadow.remove();
           win.remove();
           window.windows = window.windows.filter(w=>w!==win);
           updateTaskbarButtons();
@@ -845,6 +914,7 @@ canvas#dragGridOverlay { position: absolute; top:0; left:0; pointer-events: none
         requestAnimationFrame(()=>{ win.style.transform = 'scale(0.92)'; win.style.opacity = '0'; });
         win.addEventListener('transitionend', function onEnd2(){
           win.removeEventListener('transitionend', onEnd2);
+          if (win._shadow && win._shadow.remove) win._shadow.remove();
           win.remove();
           window.windows = window.windows.filter(w=>w!==win);
           updateTaskbarButtons();
@@ -894,7 +964,7 @@ canvas#dragGridOverlay { position: absolute; top:0; left:0; pointer-events: none
     
     win.minimize = ()=>minimizeWindow(win);
     win.restore = ()=>restoreWindow(win);
-    win.close = ()=>{ win.remove(); tbBtn.remove(); window.windows = window.windows.filter(w=>w!==win); updateTaskbarButtons(); };
+  win.close = ()=>{ if (win._shadow && win._shadow.remove) win._shadow.remove(); win.remove(); if (tbBtn && tbBtn.remove) tbBtn.remove(); window.windows = window.windows.filter(w=>w!==win); updateTaskbarButtons(); };
 
     updateTaskbarButtons();
   }
