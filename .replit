@@ -1,6 +1,11 @@
 modules = ["web", "nodejs-20"]
+run = "pnpm i && pnpm start"
 [agent]
 expertMode = true
 
 [nix]
 channel = "stable-25_05"
+
+[[ports]]
+localPort = 8080
+externalPort = 80
